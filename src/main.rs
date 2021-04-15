@@ -98,8 +98,9 @@ fn main() {
         )
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(1.0))
-                .with_system(food_spawner.system()),
+                .with_run_criteria(FixedTimestep::step(4.0))
+                .with_system(food_despawner.system())
+                .with_system(food_spawner.system())
         )
         .add_event::<GrowthEvent>()
         .add_event::<GameOverEvent>()
@@ -300,8 +301,13 @@ fn spawn_segment(
 
 
 //=== Food ----------------------------------------===//
-struct Food{
-    timestamp: u128,
+struct Food;
+
+#[derive(Debug)]
+struct Timestamp(u128);
+
+fn get_timestamp() -> u128{
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
 }
 
 fn food_spawner(
@@ -310,10 +316,10 @@ fn food_spawner(
     segments: ResMut<SnakeSegments>,
     mut positions: Query<&mut Position>,
 ){
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+
 
     // get random position
-    let mut pos = Position{
+    let pos = Position{
         x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
         y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
     };
@@ -336,11 +342,21 @@ fn food_spawner(
             material: materials.food_material.clone(),
             ..Default::default()
         })
-        .insert(Food{ timestamp })
+        .insert(Food)
+        .insert(Timestamp(get_timestamp()))
         .insert(pos)
         .insert(Size::square(0.8));
-    
-    println!("Spawning food with timestamp: {}", timestamp);
+}
+
+fn food_despawner(
+    mut commands: Commands,
+    food_items: Query<(Entity, &Timestamp), With<Food>>,
+){
+    for (ent, ts) in food_items.iter(){
+        if get_timestamp() - ts.0 >= 5{
+            commands.entity(ent).despawn();
+        }
+    }
 }
 
 //=== eat food and grow ----------------------------===//
