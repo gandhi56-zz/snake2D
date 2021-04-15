@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use rand::prelude::random;
 use bevy::core::FixedTimestep;
 use bevy::prelude::*;
@@ -8,10 +10,16 @@ use bevy::render::pass::ClearColor;
 const ARENA_WIDTH: u32 = 20;
 const ARENA_HEIGHT: u32 = 20;
 
-#[derive(Default, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Default, Copy, Clone, Eq, Hash)]
 struct Position{
     x: i32,
     y: i32,
+}
+
+impl PartialEq for Position{
+    fn eq(&self, pos: &Position) -> bool {
+        self.x == pos.x && self.y == pos.y
+    }
 }
 
 struct Size{
@@ -106,6 +114,8 @@ fn setup(
     mut commands: Commands, 
     mut materials: ResMut<Assets<ColorMaterial>>){
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+
+    // set materials for each component
     commands.insert_resource(
         Materials{
             head_material: materials.add(Color::rgb(0.7, 0.7, 0.7).into()),
@@ -145,6 +155,7 @@ fn spawn_snake(
 ) {
     segments.0 = vec![
         commands
+            // spawn an entity with components: SpriteBundle, SnakeHead, SnakeSegment, Position and Size
             .spawn_bundle(SpriteBundle {
                 material: materials.head_material.clone(),
                 sprite: Sprite::new(Vec2::new(10.0, 10.0)),
@@ -157,6 +168,7 @@ fn spawn_snake(
             .insert(Position { x: 3, y: 3 })
             .insert(Size::square(0.8))
             .id(),
+
         spawn_segment(
             commands,
             &materials.segment_material,
@@ -187,8 +199,8 @@ fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&m
 
 fn snake_movement(
     segments: ResMut<SnakeSegments>,
-    mut heads: Query<(Entity, &SnakeHead)>,
     mut positions: Query<&mut Position>,
+    mut heads: Query<(Entity, &SnakeHead)>,
     mut last_tail_position: ResMut<LastTailPosition>,
     mut game_over_writer: EventWriter<GameOverEvent>,
 ) {
@@ -288,23 +300,47 @@ fn spawn_segment(
 
 
 //=== Food ----------------------------------------===//
-struct Food;
+struct Food{
+    timestamp: u128,
+}
+
 fn food_spawner(
     mut commands: Commands,
     materials: Res<Materials>,
+    segments: ResMut<SnakeSegments>,
+    mut positions: Query<&mut Position>,
 ){
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    // get random position
+    let mut pos = Position{
+        x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
+        y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
+    };
+
+    // check if pos coincides with a snake segment
+    // if so, return without spawning
+    let segment_positions = segments.0
+        .iter()
+        .map(|e| *positions.get_mut(*e).unwrap())
+        .collect::<Vec<Position>>();
+
+    for segpos in segment_positions.iter(){
+        if segpos == &pos{
+            return;
+        }
+    }
+
     commands
         .spawn_bundle(SpriteBundle{
             material: materials.food_material.clone(),
             ..Default::default()
         })
-        .insert(Food)
-        .insert(Position{
-            x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
-            y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
-        })
+        .insert(Food{ timestamp })
+        .insert(pos)
         .insert(Size::square(0.8));
-
+    
+    println!("Spawning food with timestamp: {}", timestamp);
 }
 
 //=== eat food and grow ----------------------------===//
