@@ -1,3 +1,4 @@
+use rand::prelude::random;
 use bevy::core::FixedTimestep;
 use bevy::prelude::*;
 use bevy::sprite::ColorMaterial;
@@ -56,6 +57,7 @@ fn main() {
         })
         .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
         .insert_resource(SnakeSegments::default())
+        .insert_resource(LastTailPosition::default())
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
         .add_startup_stage("game setup", SystemStage::single(spawn_snake.system()))
@@ -66,7 +68,19 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.150))
-                .with_system(snake_movement.system().label(SnakeMovement::Movement)),
+                .with_system(snake_movement.system().label(SnakeMovement::Movement))
+                .with_system(
+                    snake_eating
+                        .system()
+                        .label(SnakeMovement::Eating)
+                        .after(SnakeMovement::Movement),
+                )
+                .with_system(
+                    snake_growth
+                    .system()
+                    .label(SnakeMovement::Growth)
+                    .after(SnakeMovement::Eating),
+                )
         )
         .add_system_set_to_stage(
             CoreStage::PostUpdate,
@@ -74,6 +88,12 @@ fn main() {
                 .with_system(position_translation.system())
                 .with_system(size_scaling.system()),
         )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(1.0))
+                .with_system(food_spawner.system()),
+        )
+        .add_event::<GrowthEvent>()
         .run();
 }
 
@@ -164,6 +184,7 @@ fn snake_movement(
     segments: ResMut<SnakeSegments>,
     mut heads: Query<(Entity, &SnakeHead)>,
     mut positions: Query<&mut Position>,
+    mut last_tail_position: ResMut<LastTailPosition>,
 ) {
     if let Some((head_entity, head)) = heads.iter_mut().next() {
         let segment_positions = segments
@@ -206,6 +227,7 @@ fn snake_movement(
             .for_each(|(pos, segment)| {
                 *positions.get_mut(*segment).unwrap() = *pos;
             });
+        last_tail_position.0 = Some(*segment_positions.last().unwrap());
     }
 }
 
@@ -255,4 +277,65 @@ fn spawn_segment(
         .insert(position)
         .insert(Size::square(0.65))
         .id()
+}
+
+
+
+
+//=== Food ----------------------------------------===//
+struct Food;
+fn food_spawner(
+    mut commands: Commands,
+    materials: Res<Materials>,
+){
+    commands
+        .spawn_bundle(SpriteBundle{
+            material: materials.food_material.clone(),
+            ..Default::default()
+        })
+        .insert(Food)
+        .insert(Position{
+            x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
+            y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
+        })
+        .insert(Size::square(0.8));
+
+}
+
+//=== eat food and grow ----------------------------===//
+struct GrowthEvent;
+
+#[derive(Default)]
+struct LastTailPosition(Option<Position>);
+
+fn snake_eating(
+    mut commands: Commands,
+    mut growth_writer: EventWriter<GrowthEvent>,
+    food_positions: Query<(Entity, &Position), With<Food>>,
+    head_positions: Query<&Position, With<SnakeHead>>,
+){
+    for head_pos in head_positions.iter(){
+        for (ent, food_pos) in food_positions.iter(){
+            if food_pos == head_pos{
+                commands.entity(ent).despawn();
+                growth_writer.send(GrowthEvent);
+            }
+        }
+    }
+}
+
+fn snake_growth(
+    commands: Commands,
+    last_tail_position: Res<LastTailPosition>,
+    mut segments: ResMut<SnakeSegments>,
+    mut growth_reader: EventReader<GrowthEvent>,
+    materials: Res<Materials>,
+){
+    if growth_reader.iter().next().is_some(){
+        segments.0.push(spawn_segment(
+            commands, 
+            &materials.segment_material,
+            last_tail_position.0.unwrap()
+        ));
+    }
 }
