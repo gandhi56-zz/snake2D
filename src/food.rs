@@ -1,20 +1,16 @@
 //=== Food ----------------------------------------===//
-use bevy::ecs::query::With;
-use bevy::ecs::entity::Entity;
-use crate::Size;
-use bevy::sprite::entity::SpriteBundle;
-use crate::ARENA_HEIGHT;
-use crate::ARENA_WIDTH;
-use crate::random;
-use crate::Position;
-use bevy::ecs::system::Query;
-use crate::SnakeSegments;
-use bevy::ecs::system::ResMut;
-use crate::Materials;
-use bevy::ecs::system::Res;
-use bevy::ecs::system::Commands;
-use std::time::UNIX_EPOCH;
-use std::time::SystemTime;
+use bevy::{
+    ecs::{
+        query::With, 
+        entity::Entity,
+        system::{Query, ResMut, Res, Commands},
+    },
+    sprite::{
+        entity::SpriteBundle
+    },
+};
+use crate::{Size, Position,SnakeSegments,Materials};
+use std::time::{UNIX_EPOCH, SystemTime};
 
 pub struct Food;
 
@@ -31,13 +27,9 @@ pub fn food_spawner(
     segments: ResMut<SnakeSegments>,
     mut positions: Query<&mut Position>,
 ){
-
-
     // get random position
-    let pos = Position{
-        x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
-        y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
-    };
+    let mut pos = Position::default();
+    pos.randomize();
 
     // check if pos coincides with a snake segment
     // if so, return without spawning
@@ -46,10 +38,21 @@ pub fn food_spawner(
         .map(|e| *positions.get_mut(*e).unwrap())
         .collect::<Vec<Position>>();
 
-    for segpos in segment_positions.iter(){
-        if segpos == &pos{
-            return;
+    for _cnt in 1..5{
+        let mut ok = true;
+        
+        // check if pos coincides with snake segment
+        for segpos in segment_positions.iter(){
+            if segpos == &pos{
+                ok = false;
+            }
         }
+
+        match ok{
+            true => {break;}
+            _ => {pos.randomize();}
+        };
+
     }
 
     commands

@@ -31,7 +31,6 @@ use bevy::{
     asset::{Assets, Handle},
     prelude::*,
     };
-use rand::prelude::random;
 
 mod snake;
 mod food;

@@ -1,4 +1,5 @@
 
+use rand::random;
 use crate::Food;
 use bevy::ecs::query::With;
 use bevy::app::EventReader;
@@ -25,6 +26,13 @@ use bevy::prelude::SystemLabel;
 pub struct Position{
     pub x: i32,
     pub y: i32,
+}
+
+impl Position{
+    pub fn randomize(&mut self){
+        self.x = (random::<f32>() * ARENA_WIDTH as f32) as i32;
+        self.y = (random::<f32>() * ARENA_HEIGHT as f32) as i32;
+    }
 }
 
 impl PartialEq for Position{
