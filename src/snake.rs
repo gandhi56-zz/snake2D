@@ -1,5 +1,6 @@
 
-use crate::GrowthEvent;
+use crate::Food;
+use bevy::ecs::query::With;
 use bevy::app::EventReader;
 use bevy::input::keyboard::KeyCode;
 use bevy::input::Input;
@@ -15,7 +16,6 @@ use crate::ARENA_HEIGHT;
 use crate::ARENA_WIDTH;
 use bevy::app::EventWriter;
 use crate::GameOverEvent;
-use crate::LastTailPosition;
 use bevy::ecs::system::Query;
 use bevy::ecs::system::ResMut;
 use bevy::ecs::entity::Entity;
@@ -213,5 +213,27 @@ pub fn snake_growth(
             &materials.segment_material,
             last_tail_position.0.unwrap()
         ));
+    }
+}
+
+//=== eat food and grow ----------------------------===//
+pub struct GrowthEvent;
+
+#[derive(Default)]
+pub struct LastTailPosition(Option<Position>);
+
+pub fn snake_eating(
+    mut commands: Commands,
+    mut growth_writer: EventWriter<GrowthEvent>,
+    food_positions: Query<(Entity, &Position), With<Food>>,
+    head_positions: Query<&Position, With<SnakeHead>>,
+){
+    for head_pos in head_positions.iter(){
+        for (ent, food_pos) in food_positions.iter(){
+            if food_pos == head_pos{
+                commands.entity(ent).despawn();
+                growth_writer.send(GrowthEvent);
+            }
+        }
     }
 }

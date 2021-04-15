@@ -1,43 +1,43 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use bevy::app::EventReader;
-use bevy::app::EventWriter;
-use bevy::ecs::query::With;
-use bevy::ecs::entity::Entity;
-use bevy::sprite::entity::SpriteBundle;
-use bevy::math::Vec3;
-use bevy::transform::components::Transform;
-use bevy::window::Windows;
-use bevy::ecs::system::Res;
-use bevy::math::Vec2;
-use bevy::ecs::system::Query;
-use bevy::sprite::Sprite;
-use bevy::render::entity::OrthographicCameraBundle;
-use bevy::asset::Assets;
-use bevy::ecs::system::ResMut;
-use bevy::ecs::system::Commands;
-use bevy::ecs::schedule::SystemSet;
-use bevy::ecs::schedule::SystemStage;
-use bevy::DefaultPlugins;
-use bevy::render::color::Color;
-use bevy::window::WindowDescriptor;
-use bevy::app::App;
-use crate::snake::{Position, snake_growth, snake_movement, snake_movement_input, spawn_snake, SnakeHead, SnakeMovement, SnakeSegment, SnakeSegments, Size};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::food::{
+    Food, food_despawner, food_spawner};
+use crate::snake::{
+    Position, snake_growth, snake_movement, snake_movement_input, spawn_snake, SnakeMovement, SnakeSegment, SnakeSegments, Size, LastTailPosition, snake_eating, GrowthEvent};
+
+use bevy::{
+    core::FixedTimestep,
+    DefaultPlugins,
+    ecs::{
+        system::{Query, ResMut, Commands, Res},
+        schedule::{SystemSet, SystemStage},
+        query::{With},
+        entity::{Entity},
+    },
+    app::{
+        App,
+        EventReader},
+    math::{Vec2, Vec3},
+    transform::components::Transform,
+    window::{
+        Windows, 
+        WindowDescriptor},
+    sprite::{Sprite, ColorMaterial},
+    render::{
+        entity::OrthographicCameraBundle,
+        pass::ClearColor,
+        color::Color},
+    asset::{Assets, Handle},
+    prelude::*,
+    };
 use rand::prelude::random;
-use bevy::core::FixedTimestep;
-use bevy::sprite::ColorMaterial;
-use bevy::asset::Handle;
-use bevy::render::pass::ClearColor;
-use bevy::prelude::*;
 
 mod snake;
+mod food;
 
 const ARENA_WIDTH: u32 = 20;
 const ARENA_HEIGHT: u32 = 20;
-
-
 
 fn main() {
     App::build()
@@ -147,90 +147,6 @@ fn position_translation(
         );
     }
 
-}
-
-
-
-
-//=== Food ----------------------------------------===//
-struct Food;
-
-#[derive(Debug)]
-struct Timestamp(u128);
-
-fn get_timestamp() -> u128{
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()
-}
-
-fn food_spawner(
-    mut commands: Commands,
-    materials: Res<Materials>,
-    segments: ResMut<SnakeSegments>,
-    mut positions: Query<&mut Position>,
-){
-
-
-    // get random position
-    let pos = Position{
-        x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
-        y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
-    };
-
-    // check if pos coincides with a snake segment
-    // if so, return without spawning
-    let segment_positions = segments.0
-        .iter()
-        .map(|e| *positions.get_mut(*e).unwrap())
-        .collect::<Vec<Position>>();
-
-    for segpos in segment_positions.iter(){
-        if segpos == &pos{
-            return;
-        }
-    }
-
-    commands
-        .spawn_bundle(SpriteBundle{
-            material: materials.food_material.clone(),
-            ..Default::default()
-        })
-        .insert(Food)
-        .insert(Timestamp(get_timestamp()))
-        .insert(pos)
-        .insert(Size::square(0.8));
-}
-
-fn food_despawner(
-    mut commands: Commands,
-    food_items: Query<(Entity, &Timestamp), With<Food>>,
-){
-    for (ent, ts) in food_items.iter(){
-        if get_timestamp() - ts.0 >= 5{
-            commands.entity(ent).despawn();
-        }
-    }
-}
-
-//=== eat food and grow ----------------------------===//
-pub struct GrowthEvent;
-
-#[derive(Default)]
-pub struct LastTailPosition(Option<Position>);
-
-fn snake_eating(
-    mut commands: Commands,
-    mut growth_writer: EventWriter<GrowthEvent>,
-    food_positions: Query<(Entity, &Position), With<Food>>,
-    head_positions: Query<&Position, With<SnakeHead>>,
-){
-    for head_pos in head_positions.iter(){
-        for (ent, food_pos) in food_positions.iter(){
-            if food_pos == head_pos{
-                commands.entity(ent).despawn();
-                growth_writer.send(GrowthEvent);
-            }
-        }
-    }
 }
 
 //=== Game over event --------------------------------===//
