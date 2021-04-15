@@ -5,7 +5,6 @@ use bevy::input::keyboard::KeyCode;
 use bevy::input::Input;
 use bevy::sprite::ColorMaterial;
 use bevy::asset::Handle;
-use crate::Size;
 use bevy::math::Vec2;
 use bevy::sprite::Sprite;
 use bevy::sprite::entity::SpriteBundle;
@@ -18,10 +17,35 @@ use bevy::app::EventWriter;
 use crate::GameOverEvent;
 use crate::LastTailPosition;
 use bevy::ecs::system::Query;
-use crate::Position;
 use bevy::ecs::system::ResMut;
 use bevy::ecs::entity::Entity;
 use bevy::prelude::SystemLabel;
+
+#[derive(Default, Copy, Clone, Eq, Hash)]
+pub struct Position{
+    pub x: i32,
+    pub y: i32,
+}
+
+impl PartialEq for Position{
+    fn eq(&self, pos: &Position) -> bool {
+        self.x == pos.x && self.y == pos.y
+    }
+}
+
+pub struct Size{
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Size{
+    pub fn square(x: f32) -> Self{
+        Self{
+            width: x,
+            height: x,
+        }
+    }
+}
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum Direction{

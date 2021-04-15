@@ -1,50 +1,43 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 
-use crate::snake::snake_growth;
-use crate::snake::snake_movement;
-use crate::snake::snake_movement_input;
-use crate::snake::spawn_snake;
-use crate::snake::{SnakeHead, SnakeMovement, SnakeSegment, SnakeSegments};
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
+use bevy::app::EventReader;
+use bevy::app::EventWriter;
+use bevy::ecs::query::With;
+use bevy::ecs::entity::Entity;
+use bevy::sprite::entity::SpriteBundle;
+use bevy::math::Vec3;
+use bevy::transform::components::Transform;
+use bevy::window::Windows;
+use bevy::ecs::system::Res;
+use bevy::math::Vec2;
+use bevy::ecs::system::Query;
+use bevy::sprite::Sprite;
+use bevy::render::entity::OrthographicCameraBundle;
+use bevy::asset::Assets;
+use bevy::ecs::system::ResMut;
+use bevy::ecs::system::Commands;
+use bevy::ecs::schedule::SystemSet;
+use bevy::ecs::schedule::SystemStage;
+use bevy::DefaultPlugins;
+use bevy::render::color::Color;
+use bevy::window::WindowDescriptor;
+use bevy::app::App;
+use crate::snake::{Position, snake_growth, snake_movement, snake_movement_input, spawn_snake, SnakeHead, SnakeMovement, SnakeSegment, SnakeSegments, Size};
+use std::time::{SystemTime, UNIX_EPOCH};
 use rand::prelude::random;
 use bevy::core::FixedTimestep;
-use bevy::prelude::*;
 use bevy::sprite::ColorMaterial;
 use bevy::asset::Handle;
 use bevy::render::pass::ClearColor;
+use bevy::prelude::*;
 
 mod snake;
 
 const ARENA_WIDTH: u32 = 20;
 const ARENA_HEIGHT: u32 = 20;
 
-#[derive(Default, Copy, Clone, Eq, Hash)]
-pub struct Position{
-    x: i32,
-    y: i32,
-}
 
-impl PartialEq for Position{
-    fn eq(&self, pos: &Position) -> bool {
-        self.x == pos.x && self.y == pos.y
-    }
-}
-
-struct Size{
-    width: f32,
-    height: f32,
-}
-
-impl Size{
-    pub fn square(x: f32) -> Self{
-        Self{
-            width: x,
-            height: x,
-        }
-    }
-}
 
 fn main() {
     App::build()
