@@ -1,3 +1,11 @@
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
+use crate::snake::snake_growth;
+use crate::snake::snake_movement;
+use crate::snake::snake_movement_input;
+use crate::snake::spawn_snake;
+use crate::snake::{SnakeHead, SnakeMovement, SnakeSegment, SnakeSegments};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use rand::prelude::random;
@@ -7,11 +15,13 @@ use bevy::sprite::ColorMaterial;
 use bevy::asset::Handle;
 use bevy::render::pass::ClearColor;
 
+mod snake;
+
 const ARENA_WIDTH: u32 = 20;
 const ARENA_HEIGHT: u32 = 20;
 
 #[derive(Default, Copy, Clone, Eq, Hash)]
-struct Position{
+pub struct Position{
     x: i32,
     y: i32,
 }
@@ -32,25 +42,6 @@ impl Size{
         Self{
             width: x,
             height: x,
-        }
-    }
-}
-
-#[derive(PartialEq, Copy, Clone)]
-enum Direction{
-    Left, 
-    Right, 
-    Up, 
-    Down,
-}
-
-impl Direction{
-    fn opposite(&self) -> Self{
-        match self{
-            Self::Left => Self::Right,
-            Self::Right => Self::Left,
-            Self::Down => Self::Up,
-            Self::Up => Self::Down,
         }
     }
 }
@@ -126,128 +117,12 @@ fn setup(
     );
 }
 
-
-struct SnakeHead{
-    direction: Direction,
-}
-struct SnakeSegment;
-
-#[derive(Default)]
-struct SnakeSegments(Vec<Entity>);
-
-#[derive(SystemLabel, Debug, Hash, PartialEq, Eq, Clone)]
-pub enum SnakeMovement{
-    Input,
-    Movement,
-    Eating,
-    Growth,
-}
-
-struct Materials{
+pub struct Materials{
     head_material: Handle<ColorMaterial>,
     segment_material: Handle<ColorMaterial>,
     food_material: Handle<ColorMaterial>,
 }
 
-fn spawn_snake(
-    mut commands: Commands,
-    materials: Res<Materials>,
-    mut segments: ResMut<SnakeSegments>,
-) {
-    segments.0 = vec![
-        commands
-            // spawn an entity with components: SpriteBundle, SnakeHead, SnakeSegment, Position and Size
-            .spawn_bundle(SpriteBundle {
-                material: materials.head_material.clone(),
-                sprite: Sprite::new(Vec2::new(10.0, 10.0)),
-                ..Default::default()
-            })
-            .insert(SnakeHead {
-                direction: Direction::Up,
-            })
-            .insert(SnakeSegment)
-            .insert(Position { x: 3, y: 3 })
-            .insert(Size::square(0.8))
-            .id(),
-
-        spawn_segment(
-            commands,
-            &materials.segment_material,
-            Position { x: 3, y: 2 },
-        ),
-    ];
-}
-
-fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
-    if let Some(mut head) = heads.iter_mut().next() {
-        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
-            Direction::Left
-        } else if keyboard_input.pressed(KeyCode::Down) {
-            Direction::Down
-        } else if keyboard_input.pressed(KeyCode::Up) {
-            Direction::Up
-        } else if keyboard_input.pressed(KeyCode::Right) {
-            Direction::Right
-        } else {
-            head.direction
-        };
-        if dir != head.direction.opposite() {
-            head.direction = dir;
-        }
-    }
-}
-
-
-fn snake_movement(
-    segments: ResMut<SnakeSegments>,
-    mut positions: Query<&mut Position>,
-    mut heads: Query<(Entity, &SnakeHead)>,
-    mut last_tail_position: ResMut<LastTailPosition>,
-    mut game_over_writer: EventWriter<GameOverEvent>,
-) {
-    if let Some((head_entity, head)) = heads.iter_mut().next() {
-        let segment_positions = segments
-            .0
-            .iter()
-            .map(|e| *positions.get_mut(*e).unwrap())
-            .collect::<Vec<Position>>();
-        let mut head_pos = positions.get_mut(head_entity).unwrap();
-        match &head.direction {
-            Direction::Left => {
-                head_pos.x -= 1;
-            }
-            Direction::Right => {
-                head_pos.x += 1;
-            }
-            Direction::Up => {
-                head_pos.y += 1;
-            }
-            Direction::Down => {
-                head_pos.y -= 1;
-            }
-        };
-
-        // check for hitting the walls
-        if head_pos.x < 0 || head_pos.y < 0 || 
-            head_pos.x as u32 >= ARENA_WIDTH ||
-            head_pos.y as u32 >= ARENA_HEIGHT{
-            game_over_writer.send(GameOverEvent);
-        }
-
-        // check if the snake is eating itself
-        if segment_positions.contains(&head_pos){
-            game_over_writer.send(GameOverEvent)
-        }
-
-        segment_positions
-            .iter()
-            .zip(segments.0.iter().skip(1))
-            .for_each(|(pos, segment)| {
-                *positions.get_mut(*segment).unwrap() = *pos;
-            });
-        last_tail_position.0 = Some(*segment_positions.last().unwrap());
-    }
-}
 
 fn size_scaling(
     windows: Res<Windows>,
@@ -279,22 +154,6 @@ fn position_translation(
         );
     }
 
-}
-
-fn spawn_segment(
-    mut commands: Commands,
-    material: &Handle<ColorMaterial>,
-    position: Position,
-) -> Entity {
-    commands
-        .spawn_bundle(SpriteBundle {
-            material: material.clone(),
-            ..Default::default()
-        })
-        .insert(SnakeSegment)
-        .insert(position)
-        .insert(Size::square(0.65))
-        .id()
 }
 
 
@@ -360,10 +219,10 @@ fn food_despawner(
 }
 
 //=== eat food and grow ----------------------------===//
-struct GrowthEvent;
+pub struct GrowthEvent;
 
 #[derive(Default)]
-struct LastTailPosition(Option<Position>);
+pub struct LastTailPosition(Option<Position>);
 
 fn snake_eating(
     mut commands: Commands,
@@ -381,25 +240,9 @@ fn snake_eating(
     }
 }
 
-fn snake_growth(
-    commands: Commands,
-    last_tail_position: Res<LastTailPosition>,
-    mut segments: ResMut<SnakeSegments>,
-    mut growth_reader: EventReader<GrowthEvent>,
-    materials: Res<Materials>,
-){
-    if growth_reader.iter().next().is_some(){
-        segments.0.push(spawn_segment(
-            commands, 
-            &materials.segment_material,
-            last_tail_position.0.unwrap()
-        ));
-    }
-}
-
 //=== Game over event --------------------------------===//
 
-struct GameOverEvent;
+pub struct GameOverEvent;
 
 fn game_over(
     mut commands: Commands,
