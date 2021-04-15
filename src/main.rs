@@ -94,6 +94,11 @@ fn main() {
                 .with_system(food_spawner.system()),
         )
         .add_event::<GrowthEvent>()
+        .add_event::<GameOverEvent>()
+        .add_system(game_over
+            .system()
+            .after(SnakeMovement::Movement)
+        )
         .run();
 }
 
@@ -185,6 +190,7 @@ fn snake_movement(
     mut heads: Query<(Entity, &SnakeHead)>,
     mut positions: Query<&mut Position>,
     mut last_tail_position: ResMut<LastTailPosition>,
+    mut game_over_writer: EventWriter<GameOverEvent>,
 ) {
     if let Some((head_entity, head)) = heads.iter_mut().next() {
         let segment_positions = segments
@@ -208,17 +214,16 @@ fn snake_movement(
             }
         };
 
-        if head_pos.x < 0{
-            head_pos.x = ARENA_WIDTH as i32 - 1;
+        // check for hitting the walls
+        if head_pos.x < 0 || head_pos.y < 0 || 
+            head_pos.x as u32 >= ARENA_WIDTH ||
+            head_pos.y as u32 >= ARENA_HEIGHT{
+            game_over_writer.send(GameOverEvent);
         }
-        if head_pos.x >= ARENA_WIDTH as i32{
-            head_pos.x = 0;
-        }
-        if head_pos.y < 0{
-            head_pos.y = ARENA_HEIGHT as i32 - 1;
-        }
-        if head_pos.y >= ARENA_HEIGHT as i32{
-            head_pos.y = 0;
+
+        // check if the snake is eating itself
+        if segment_positions.contains(&head_pos){
+            game_over_writer.send(GameOverEvent)
         }
 
         segment_positions
@@ -337,5 +342,25 @@ fn snake_growth(
             &materials.segment_material,
             last_tail_position.0.unwrap()
         ));
+    }
+}
+
+//=== Game over event --------------------------------===//
+
+struct GameOverEvent;
+
+fn game_over(
+    mut commands: Commands,
+    mut reader: EventReader<GameOverEvent>,
+    materials: Res<Materials>,
+    segment_res: ResMut<SnakeSegments>,
+    food: Query<Entity, With<Food>>,
+    segments: Query<Entity, With<SnakeSegment>>
+){
+    if reader.iter().next().is_some(){
+        for ent in food.iter().chain(segments.iter()){
+            commands.entity(ent).despawn();
+        }
+        spawn_snake(commands, materials, segment_res);
     }
 }
