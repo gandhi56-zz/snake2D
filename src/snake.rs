@@ -22,6 +22,7 @@ use bevy::ecs::system::ResMut;
 use bevy::ecs::entity::Entity;
 use bevy::prelude::SystemLabel;
 
+
 #[derive(Default, Copy, Clone, Eq, Hash)]
 pub struct Position{
     pub x: i32,
@@ -76,6 +77,7 @@ impl Direction{
 
 pub struct SnakeHead{
     pub direction: Direction,
+    pub user_input_dir: Direction,
 }
 pub struct SnakeSegment;
 
@@ -106,6 +108,7 @@ pub fn spawn_snake(
             })
             .insert(SnakeHead {
                 direction: Direction::Up,
+                user_input_dir: Direction::Up,
             })
             .insert(SnakeSegment)
             .insert(Position { x: 3, y: 3 })
@@ -137,9 +140,11 @@ pub fn spawn_segment(
         .id()
 }
 
-pub fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
+pub fn snake_movement_input(
+    keyboard_input: Res<Input<KeyCode>>, 
+    mut heads: Query<&mut SnakeHead>) {
     if let Some(mut head) = heads.iter_mut().next() {
-        let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
+        head.user_input_dir = if keyboard_input.pressed(KeyCode::Left) {
             Direction::Left
         } else if keyboard_input.pressed(KeyCode::Down) {
             Direction::Down
@@ -150,9 +155,6 @@ pub fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Quer
         } else {
             head.direction
         };
-        if dir != head.direction.opposite() {
-            head.direction = dir;
-        }
     }
 }
 
@@ -160,17 +162,22 @@ pub fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Quer
 pub fn snake_movement(
     segments: ResMut<SnakeSegments>,
     mut positions: Query<&mut Position>,
-    mut heads: Query<(Entity, &SnakeHead)>,
+    mut heads: Query<(Entity, &mut SnakeHead)>,
     mut last_tail_position: ResMut<LastTailPosition>,
     mut game_over_writer: EventWriter<GameOverEvent>,
 ) {
-    if let Some((head_entity, head)) = heads.iter_mut().next() {
+    if let Some((head_entity, mut head)) = heads.iter_mut().next() {
         let segment_positions = segments
             .0
             .iter()
             .map(|e| *positions.get_mut(*e).unwrap())
             .collect::<Vec<Position>>();
         let mut head_pos = positions.get_mut(head_entity).unwrap();
+        
+        if &head.direction != &head.user_input_dir.opposite(){
+            head.direction = head.user_input_dir;
+        }
+        
         match &head.direction {
             Direction::Left => {
                 head_pos.x -= 1;
